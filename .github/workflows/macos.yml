@@ -22,7 +22,9 @@ jobs:
 
       - name: Run macOS Command
         run: echo "Hello from macOS GitHub Runner!"
-        on:
+        name: Run macOS in GitHub Actions
+
+on:
   workflow_dispatch:  # 👈 This allows manual triggering
   push:
   pull_request:

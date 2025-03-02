@@ -1,0 +1,24 @@
+name: Run macOS in GitHub Actions
+
+on: [push, pull_request]
+
+jobs:
+  macos-test:
+    runs-on: macos-latest  # Runs on the latest macOS version
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3  # Get your repository code
+
+      - name: Show macOS Version
+        run: sw_vers  # Display macOS version info
+
+      - name: Show System Info
+        run: system_profiler SPHardwareDataType
+
+      - name: Install Homebrew
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          brew --version
+
+      - name: Run macOS Command
+        run: echo "Hello from macOS GitHub Runner!"

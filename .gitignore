@@ -1,0 +1,7 @@
+build/
+*.o
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CaptionStudio_autogen/

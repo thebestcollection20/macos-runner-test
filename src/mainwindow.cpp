@@ -234,8 +234,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
 
         if (result == QMessageBox::Save) {
-            saveProject();
-            event->accept();
+            if (saveProject())
+                event->accept();
+            else
+                event->ignore();
         } else if (result == QMessageBox::Cancel) {
             event->ignore();
         } else {
@@ -298,34 +300,37 @@ void MainWindow::openProject()
     statusBar()->showMessage("Project opened: " + path, 3000);
 }
 
-void MainWindow::saveProject()
+bool MainWindow::saveProject()
 {
     if (m_project->filePath().isEmpty()) {
-        saveProjectAs();
-        return;
+        return saveProjectAs();
     }
 
     if (m_project->save()) {
         updateTitle();
         statusBar()->showMessage("Project saved", 3000);
+        return true;
     } else {
         QMessageBox::critical(this, "Error", "Failed to save project.");
+        return false;
     }
 }
 
-void MainWindow::saveProjectAs()
+bool MainWindow::saveProjectAs()
 {
     QString path = QFileDialog::getSaveFileName(this, "Save Project As",
         m_project->name() + ".csp",
         "CaptionStudio Projects (*.csp);;All Files (*)");
 
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) return false;
 
     if (m_project->saveAs(path)) {
         updateTitle();
         statusBar()->showMessage("Project saved: " + path, 3000);
+        return true;
     } else {
         QMessageBox::critical(this, "Error", "Failed to save project.");
+        return false;
     }
 }
 

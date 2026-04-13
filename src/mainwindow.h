@@ -32,8 +32,8 @@ private slots:
     // File
     void newProject();
     void openProject();
-    void saveProject();
-    void saveProjectAs();
+    bool saveProject();
+    bool saveProjectAs();
 
     // Edit
     void undo();

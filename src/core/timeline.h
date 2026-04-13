@@ -37,6 +37,7 @@ public:
     void moveClip(const QUuid &id, qint64 newStart, int newTrack);
     Clip *clipById(const QUuid &id);
     QVector<Clip> clipsOnTrack(int trackIndex) const;
+    void deselectAllClips();
 
     // Captions
     QVector<Caption> captions() const { return m_captions; }
@@ -44,6 +45,7 @@ public:
     void removeCaption(const QUuid &id);
     Caption *captionById(const QUuid &id);
     QVector<Caption> captionsAtTime(qint64 time) const;
+    void deselectAllCaptions();
 
     // Playback
     qint64 duration() const;

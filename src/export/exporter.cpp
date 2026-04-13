@@ -22,7 +22,15 @@ void Exporter::exportProject()
     emit exportStarted();
 
     // For now, export captions since full video export requires FFmpeg
-    exportCaptions();
+    QString path = m_settings.outputPath;
+
+    if (m_settings.captionFormat == "SRT") {
+        exportSRT(path);
+    } else if (m_settings.captionFormat == "VTT") {
+        exportVTT(path);
+    } else if (m_settings.captionFormat == "ASS") {
+        exportASS(path);
+    }
 
     m_exporting = false;
     m_progress = 1.0;
@@ -84,7 +92,7 @@ void Exporter::exportSRT(const QString &path)
         out << formatTimeSRT(cap.startTime()) << " --> " << formatTimeSRT(cap.endTime()) << "\n";
         out << cap.text() << "\n\n";
 
-        m_progress = static_cast<qreal>(index) / captions.size();
+        m_progress = static_cast<qreal>(index - 1) / captions.size();
         emit progressChanged(m_progress);
 
         if (m_cancelled) {

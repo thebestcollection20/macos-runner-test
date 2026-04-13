@@ -250,8 +250,8 @@ void TimelineCanvas::mousePressEvent(QMouseEvent *event)
     for (auto &cap : m_timeline->captions()) {
         if (captionRect(cap).contains(pos)) {
             // Deselect all, select this
-            for (auto &c : m_timeline->captions())
-                c.setSelected(false);
+            m_timeline->deselectAllClips();
+            m_timeline->deselectAllCaptions();
             Caption *selected = m_timeline->captionById(cap.id());
             if (selected) {
                 selected->setSelected(true);
@@ -265,8 +265,8 @@ void TimelineCanvas::mousePressEvent(QMouseEvent *event)
     // Check clips
     for (auto &clip : m_timeline->clips()) {
         if (clipRect(clip).contains(pos)) {
-            for (auto &c : m_timeline->clips())
-                c.setSelected(false);
+            m_timeline->deselectAllClips();
+            m_timeline->deselectAllCaptions();
             Clip *selected = m_timeline->clipById(clip.id());
             if (selected) {
                 selected->setSelected(true);
@@ -281,10 +281,8 @@ void TimelineCanvas::mousePressEvent(QMouseEvent *event)
     }
 
     // Click on empty space - deselect
-    for (auto &c : m_timeline->clips())
-        c.setSelected(false);
-    for (auto &c : m_timeline->captions())
-        c.setSelected(false);
+    m_timeline->deselectAllClips();
+    m_timeline->deselectAllCaptions();
     update();
 }
 

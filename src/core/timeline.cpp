@@ -99,6 +99,12 @@ Clip *Timeline::clipById(const QUuid &id)
     return nullptr;
 }
 
+void Timeline::deselectAllClips()
+{
+    for (auto &clip : m_clips)
+        clip.setSelected(false);
+}
+
 QVector<Clip> Timeline::clipsOnTrack(int trackIndex) const
 {
     QVector<Clip> result;
@@ -131,6 +137,12 @@ Caption *Timeline::captionById(const QUuid &id)
             return &cap;
     }
     return nullptr;
+}
+
+void Timeline::deselectAllCaptions()
+{
+    for (auto &cap : m_captions)
+        cap.setSelected(false);
 }
 
 QVector<Caption> Timeline::captionsAtTime(qint64 time) const

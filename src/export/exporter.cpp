@@ -55,6 +55,7 @@ void Exporter::exportCaptions()
     }
 
     m_exporting = true;
+    m_cancelled = false;
     emit exportStarted();
 
     QString path = m_settings.outputPath;

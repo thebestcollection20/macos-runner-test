@@ -339,8 +339,8 @@ QGroupBox *CaptionEditor::createPositionGroup()
     layout->addLayout(row1);
     layout->addLayout(row2);
 
-    connect(m_alignH, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CaptionEditor::onPositionChanged);
-    connect(m_alignV, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CaptionEditor::onPositionChanged);
+    connect(m_alignH, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CaptionEditor::onAlignmentChanged);
+    connect(m_alignV, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CaptionEditor::onAlignmentChanged);
     connect(m_posX, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &CaptionEditor::onPositionChanged);
     connect(m_posY, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &CaptionEditor::onPositionChanged);
 
@@ -452,6 +452,21 @@ void CaptionEditor::updateFromCaption()
     m_posX->setValue(m_caption->position().x());
     m_posY->setValue(m_caption->position().y());
 
+    // Restore alignment combo boxes from style
+    if (s.alignment & Qt::AlignLeft)
+        m_alignH->setCurrentIndex(0);
+    else if (s.alignment & Qt::AlignRight)
+        m_alignH->setCurrentIndex(2);
+    else
+        m_alignH->setCurrentIndex(1);
+
+    if (s.alignment & Qt::AlignTop)
+        m_alignV->setCurrentIndex(0);
+    else if (s.alignment & Qt::AlignVCenter)
+        m_alignV->setCurrentIndex(1);
+    else
+        m_alignV->setCurrentIndex(2);
+
     m_animIn->setCurrentIndex(static_cast<int>(m_caption->animationIn()));
     m_animOut->setCurrentIndex(static_cast<int>(m_caption->animationOut()));
     m_animDuration->setValue(m_caption->animationDuration());
@@ -544,24 +559,47 @@ void CaptionEditor::onPositionChanged()
 {
     if (!m_caption) return;
     m_caption->setPosition(QPointF(m_posX->value(), m_posY->value()));
+    emit captionChanged();
+}
 
-    // Compute alignment
+void CaptionEditor::onAlignmentChanged()
+{
+    if (!m_caption) return;
+
+    // Compute alignment and update position to match
     int align = 0;
     switch (m_alignH->currentIndex()) {
-    case 0: align |= Qt::AlignLeft; m_posX->setValue(0.15); break;
-    case 1: align |= Qt::AlignHCenter; m_posX->setValue(0.5); break;
-    case 2: align |= Qt::AlignRight; m_posX->setValue(0.85); break;
+    case 0: align |= Qt::AlignLeft; break;
+    case 1: align |= Qt::AlignHCenter; break;
+    case 2: align |= Qt::AlignRight; break;
     }
     switch (m_alignV->currentIndex()) {
-    case 0: align |= Qt::AlignTop; m_posY->setValue(0.15); break;
-    case 1: align |= Qt::AlignVCenter; m_posY->setValue(0.5); break;
-    case 2: align |= Qt::AlignBottom; m_posY->setValue(0.85); break;
+    case 0: align |= Qt::AlignTop; break;
+    case 1: align |= Qt::AlignVCenter; break;
+    case 2: align |= Qt::AlignBottom; break;
     }
 
     CaptionStyle style = m_caption->style();
     style.alignment = align;
     m_caption->setStyle(style);
 
+    // Update position spinboxes to match alignment (block signals to prevent recursion)
+    m_posX->blockSignals(true);
+    m_posY->blockSignals(true);
+    switch (m_alignH->currentIndex()) {
+    case 0: m_posX->setValue(0.15); break;
+    case 1: m_posX->setValue(0.5); break;
+    case 2: m_posX->setValue(0.85); break;
+    }
+    switch (m_alignV->currentIndex()) {
+    case 0: m_posY->setValue(0.15); break;
+    case 1: m_posY->setValue(0.5); break;
+    case 2: m_posY->setValue(0.85); break;
+    }
+    m_posX->blockSignals(false);
+    m_posY->blockSignals(false);
+
+    m_caption->setPosition(QPointF(m_posX->value(), m_posY->value()));
     emit captionChanged();
 }
 

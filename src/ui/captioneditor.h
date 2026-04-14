@@ -51,6 +51,7 @@ private slots:
     void onFontChanged();
     void onStyleChanged();
     void onPositionChanged();
+    void onAlignmentChanged();
     void onAnimationChanged();
 
 private:

@@ -5,6 +5,9 @@
 #include <QLabel>
 #include <QApplication>
 #include <QtGlobal>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 
 // Qt5/Qt6 addAction compatibility
 // Qt6 changed parameter order: addAction(text, shortcut, receiver, slot)
@@ -200,8 +203,15 @@ void MainWindow::setupConnections()
     connect(m_timelinePanel, &TimelinePanel::captionSelected, this, &MainWindow::onCaptionSelected);
     connect(m_timelinePanel, &TimelinePanel::addCaptionRequested, this, &MainWindow::addCaption);
 
+    // Timeline toolbar buttons
+    connect(m_timelinePanel, &TimelinePanel::splitRequested, this, &MainWindow::splitAtPlayhead);
+    connect(m_timelinePanel, &TimelinePanel::deleteRequested, this, &MainWindow::deleteSelected);
+    connect(m_timelinePanel, &TimelinePanel::addTrackRequested, this, &MainWindow::addTrack);
+    connect(m_timelinePanel, &TimelinePanel::dropMediaFile, this, &MainWindow::onDropMediaToTimeline);
+
     // Media browser
     connect(m_mediaBrowser, &MediaBrowser::addToTimeline, this, &MainWindow::onAddToTimeline);
+    connect(m_mediaBrowser, &MediaBrowser::mediaDoubleClicked, this, &MainWindow::onAddToTimeline);
 
     // Caption editor changes -> update preview
     connect(m_captionEditor, &CaptionEditor::captionChanged, [this]() {
@@ -358,13 +368,86 @@ void MainWindow::redo()
 
 void MainWindow::deleteSelected()
 {
+    // Delete selected caption
     if (m_selectedCaption) {
         m_project->timeline()->removeCaption(m_selectedCaption->id());
         m_captionEditor->clearCaption();
         m_selectedCaption = nullptr;
         m_previewPanel->update();
+        m_project->setModified(true);
+        updateTitle();
         statusBar()->showMessage("Caption deleted", 2000);
+        return;
     }
+
+    // Delete selected clip
+    for (const auto &clip : m_project->timeline()->clips()) {
+        if (clip.isSelected()) {
+            m_project->timeline()->removeClip(clip.id());
+            m_inspectorPanel->clearClip();
+            m_previewPanel->update();
+            m_project->setModified(true);
+            updateTitle();
+            statusBar()->showMessage("Clip deleted", 2000);
+            return;
+        }
+    }
+
+    statusBar()->showMessage("Nothing selected to delete", 2000);
+}
+
+void MainWindow::splitAtPlayhead()
+{
+    qint64 time = m_project->timeline()->currentTime();
+
+    // Find a selected clip at the playhead
+    for (const auto &clip : m_project->timeline()->clips()) {
+        if (clip.isSelected() && time > clip.startTime() && time < clip.endTime()) {
+            m_project->timeline()->splitClipAtTime(clip.id(), time);
+            m_project->setModified(true);
+            updateTitle();
+            statusBar()->showMessage("Clip split at playhead", 2000);
+            return;
+        }
+    }
+
+    // If no selected clip, try any clip at playhead
+    for (const auto &clip : m_project->timeline()->clips()) {
+        if (time > clip.startTime() && time < clip.endTime()) {
+            m_project->timeline()->splitClipAtTime(clip.id(), time);
+            m_project->setModified(true);
+            updateTitle();
+            statusBar()->showMessage("Clip split at playhead", 2000);
+            return;
+        }
+    }
+
+    statusBar()->showMessage("No clip at playhead to split", 2000);
+}
+
+void MainWindow::addTrack()
+{
+    QStringList types = {"Video", "Audio", "Caption"};
+    bool ok;
+    QString typeStr = QInputDialog::getItem(this, "Add Track", "Track type:", types, 0, false, &ok);
+    if (!ok) return;
+
+    Track track;
+    if (typeStr == "Video") {
+        track.type = Track::Video;
+        track.name = QString("Video %1").arg(m_project->timeline()->trackCount() + 1);
+    } else if (typeStr == "Audio") {
+        track.type = Track::Audio;
+        track.name = QString("Audio %1").arg(m_project->timeline()->trackCount() + 1);
+    } else {
+        track.type = Track::Caption;
+        track.name = QString("Captions %1").arg(m_project->timeline()->trackCount() + 1);
+    }
+
+    m_project->timeline()->addTrack(track);
+    m_project->setModified(true);
+    updateTitle();
+    statusBar()->showMessage("Track added: " + track.name, 2000);
 }
 
 void MainWindow::selectAll()
@@ -525,14 +608,15 @@ void MainWindow::onAddToTimeline(const QString &path)
     ClipType type = ClipType::Video;
     int trackIndex = 0;
 
-    if (ext == "mp3" || ext == "wav" || ext == "aac" || ext == "flac") {
+    if (ext == "mp3" || ext == "wav" || ext == "aac" || ext == "flac" || ext == "ogg" || ext == "wma") {
         type = ClipType::Audio;
         trackIndex = 2; // Audio track
-    } else if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" || ext == "bmp" || ext == "svg") {
+    } else if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" || ext == "bmp" || ext == "svg" || ext == "webp" || ext == "tiff") {
         type = ClipType::Image;
     }
 
     Clip clip(type, path);
+    clip.setName(fi.fileName());
     clip.setStartTime(m_project->timeline()->currentTime());
     clip.setTrackIndex(trackIndex);
     m_project->timeline()->addClip(clip);
@@ -540,6 +624,57 @@ void MainWindow::onAddToTimeline(const QString &path)
     m_project->setModified(true);
     updateTitle();
     statusBar()->showMessage("Added to timeline: " + fi.fileName(), 3000);
+}
+
+void MainWindow::onDropMediaToTimeline(const QString &path, qint64 time, int trackIndex)
+{
+    QFileInfo fi(path);
+    QString ext = fi.suffix().toLower();
+
+    ClipType type = ClipType::Video;
+
+    if (ext == "mp3" || ext == "wav" || ext == "aac" || ext == "flac" || ext == "ogg" || ext == "wma") {
+        type = ClipType::Audio;
+    } else if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" || ext == "bmp" || ext == "svg" || ext == "webp" || ext == "tiff") {
+        type = ClipType::Image;
+    }
+
+    Clip clip(type, path);
+    clip.setName(fi.fileName());
+    clip.setStartTime(time);
+    clip.setTrackIndex(trackIndex);
+    m_project->timeline()->addClip(clip);
+
+    // Also add to project media files if not already there
+    if (!m_project->mediaFiles().contains(path)) {
+        m_project->addMediaFile(path);
+    }
+
+    m_project->setModified(true);
+    updateTitle();
+    statusBar()->showMessage("Dropped to timeline: " + fi.fileName(), 3000);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls())
+        event->acceptProposedAction();
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        for (const auto &url : event->mimeData()->urls()) {
+            QString path = url.toLocalFile();
+            if (!path.isEmpty()) {
+                // Add to project media files
+                m_project->addMediaFile(path);
+                // Also add to timeline
+                onAddToTimeline(path);
+            }
+        }
+        event->acceptProposedAction();
+    }
 }
 
 void MainWindow::onPresetApplied(const CaptionPreset &preset)

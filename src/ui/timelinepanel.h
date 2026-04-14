@@ -8,6 +8,9 @@
 #include <QVBoxLayout>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 #include "core/timeline.h"
 
 class TimelineRuler : public QWidget {
@@ -69,24 +72,38 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 signals:
     void clipSelected(const QUuid &id);
     void captionSelected(const QUuid &id);
+    void addCaptionAtTime(qint64 time, int trackIndex);
+    void dropMediaFile(const QString &path, qint64 time, int trackIndex);
 
 private:
+    enum DragMode { DragNone, DragMoveClip, DragMoveCaption, DragTrimLeftClip, DragTrimRightClip, DragTrimLeftCaption, DragTrimRightCaption };
+
     QColor clipColor(ClipType type, bool selected) const;
     QRect clipRect(const Clip &clip) const;
     QRect captionRect(const Caption &cap) const;
     int trackY(int trackIndex) const;
+    int trackAtY(int y) const;
+    bool isNearLeftEdge(const QRect &r, const QPoint &pos) const;
+    bool isNearRightEdge(const QRect &r, const QPoint &pos) const;
+    void updateCursorForPos(const QPoint &pos);
 
     Timeline *m_timeline = nullptr;
     qreal m_pixelsPerMs = 0.1;
     int m_scrollOffset = 0;
     int m_trackHeight = 40;
-    QUuid m_dragClipId;
+    QUuid m_dragItemId;
     QPoint m_dragStart;
-    bool m_dragging = false;
+    DragMode m_dragMode = DragNone;
+    qint64 m_originalStart = 0;
+    qint64 m_originalDuration = 0;
 };
 
 class TimelinePanel : public QWidget {
@@ -101,6 +118,10 @@ signals:
     void clipSelected(const QUuid &id);
     void captionSelected(const QUuid &id);
     void addCaptionRequested();
+    void splitRequested();
+    void deleteRequested();
+    void addTrackRequested();
+    void dropMediaFile(const QString &path, qint64 time, int trackIndex);
 
 public slots:
     void zoomIn();

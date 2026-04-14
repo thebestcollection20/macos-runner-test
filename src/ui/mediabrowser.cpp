@@ -1,6 +1,9 @@
 #include "mediabrowser.h"
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QDrag>
+#include <QMimeData>
+#include <QApplication>
 
 MediaBrowser::MediaBrowser(QWidget *parent)
     : QWidget(parent)
@@ -32,6 +35,10 @@ MediaBrowser::MediaBrowser(QWidget *parent)
     m_listWidget = new QListWidget;
     m_listWidget->setIconSize(QSize(32, 32));
     m_listWidget->setSpacing(2);
+    m_listWidget->setDragEnabled(true);
+    m_listWidget->setDragDropMode(QAbstractItemView::DragOnly);
+    m_listWidget->setDefaultDropAction(Qt::CopyAction);
+    m_listWidget->setSelectionMode(QAbstractItemView::SingleSelection);
     layout->addWidget(m_listWidget, 1);
 
     // Add to timeline
@@ -58,6 +65,18 @@ MediaBrowser::MediaBrowser(QWidget *parent)
     });
     connect(m_listWidget, &QListWidget::itemDoubleClicked, [this](QListWidgetItem *item) {
         emit mediaDoubleClicked(item->data(Qt::UserRole).toString());
+    });
+
+    // Enable drag from list to timeline
+    connect(m_listWidget, &QListWidget::itemPressed, [this](QListWidgetItem *item) {
+        if (!item) return;
+        QDrag *drag = new QDrag(this);
+        QMimeData *mimeData = new QMimeData;
+        QString path = item->data(Qt::UserRole).toString();
+        mimeData->setUrls({QUrl::fromLocalFile(path)});
+        mimeData->setText(path);
+        drag->setMimeData(mimeData);
+        drag->exec(Qt::CopyAction);
     });
 }
 

@@ -40,6 +40,8 @@ private slots:
     void redo();
     void deleteSelected();
     void selectAll();
+    void splitAtPlayhead();
+    void addTrack();
 
     // Captions
     void addCaption();
@@ -56,6 +58,7 @@ private slots:
     void onClipSelected(const QUuid &id);
     void onCaptionSelected(const QUuid &id);
     void onAddToTimeline(const QString &path);
+    void onDropMediaToTimeline(const QString &path, qint64 time, int trackIndex);
 
     // Preset events
     void onPresetApplied(const CaptionPreset &preset);
@@ -72,6 +75,10 @@ private:
     void setupConnections();
     void updateTitle();
     void addSampleContent();
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
     Project *m_project;
     Exporter *m_exporter;

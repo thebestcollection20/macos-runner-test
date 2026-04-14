@@ -2,6 +2,9 @@
 #include "theme.h"
 #include <QScrollBar>
 #include <QtGlobal>
+#include <QUrl>
+#include <QFileInfo>
+#include <QInputDialog>
 
 // Qt5/Qt6 mouse event compatibility
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -157,6 +160,7 @@ TimelineCanvas::TimelineCanvas(QWidget *parent)
 {
     setMouseTracking(true);
     setMinimumHeight(120);
+    setAcceptDrops(true);
 }
 
 void TimelineCanvas::setTimeline(Timeline *timeline)
@@ -214,11 +218,10 @@ void TimelineCanvas::paintEvent(QPaintEvent *)
         p.setFont(clipFont);
         p.drawText(r.adjusted(4, 2, -4, -2), Qt::AlignLeft | Qt::AlignVCenter, clip.name());
 
-        // Trim handles
-        if (clip.isSelected()) {
-            p.fillRect(r.left(), r.top(), 4, r.height(), color.lighter(160));
-            p.fillRect(r.right() - 4, r.top(), 4, r.height(), color.lighter(160));
-        }
+        // Trim handles (always visible for better UX)
+        QColor clipHandleColor = clip.isSelected() ? color.lighter(180) : color.lighter(140);
+        p.fillRect(r.left(), r.top(), 5, r.height(), clipHandleColor);
+        p.fillRect(r.right() - 5, r.top(), 5, r.height(), clipHandleColor);
     }
 
     // Draw captions on caption tracks
@@ -239,8 +242,13 @@ void TimelineCanvas::paintEvent(QPaintEvent *)
         p.setPen(Qt::white);
         QFont capFont("Segoe UI", 8);
         p.setFont(capFont);
-        p.drawText(r.adjusted(4, 2, -4, -2), Qt::AlignLeft | Qt::AlignVCenter,
+        p.drawText(r.adjusted(8, 2, -8, -2), Qt::AlignLeft | Qt::AlignVCenter,
                    cap.text().left(30));
+
+        // Trim handles for captions
+        QColor capHandleColor = cap.isSelected() ? color.lighter(180) : color.lighter(140);
+        p.fillRect(r.left(), r.top(), 5, r.height(), capHandleColor);
+        p.fillRect(r.right() - 5, r.top(), 5, r.height(), capHandleColor);
     }
 
     // Playhead
@@ -255,16 +263,28 @@ void TimelineCanvas::mousePressEvent(QMouseEvent *event)
         return;
 
     QPoint pos = MOUSE_POS(event);
+    m_dragStart = pos;
 
-    // Check captions first
+    // Check captions first (edge trim takes priority over move)
     for (auto &cap : m_timeline->captions()) {
-        if (captionRect(cap).contains(pos)) {
-            // Deselect all, select this
+        QRect r = captionRect(cap);
+        if (r.contains(pos)) {
             m_timeline->deselectAllClips();
             m_timeline->deselectAllCaptions();
             Caption *selected = m_timeline->captionById(cap.id());
             if (selected) {
                 selected->setSelected(true);
+                m_dragItemId = cap.id();
+                m_originalStart = cap.startTime();
+                m_originalDuration = cap.duration();
+
+                if (isNearLeftEdge(r, pos))
+                    m_dragMode = DragTrimLeftCaption;
+                else if (isNearRightEdge(r, pos))
+                    m_dragMode = DragTrimRightCaption;
+                else
+                    m_dragMode = DragMoveCaption;
+
                 emit captionSelected(cap.id());
             }
             update();
@@ -274,15 +294,24 @@ void TimelineCanvas::mousePressEvent(QMouseEvent *event)
 
     // Check clips
     for (auto &clip : m_timeline->clips()) {
-        if (clipRect(clip).contains(pos)) {
+        QRect r = clipRect(clip);
+        if (r.contains(pos)) {
             m_timeline->deselectAllClips();
             m_timeline->deselectAllCaptions();
             Clip *selected = m_timeline->clipById(clip.id());
             if (selected) {
                 selected->setSelected(true);
-                m_dragClipId = clip.id();
-                m_dragStart = pos;
-                m_dragging = true;
+                m_dragItemId = clip.id();
+                m_originalStart = clip.startTime();
+                m_originalDuration = clip.duration();
+
+                if (isNearLeftEdge(r, pos))
+                    m_dragMode = DragTrimLeftClip;
+                else if (isNearRightEdge(r, pos))
+                    m_dragMode = DragTrimRightClip;
+                else
+                    m_dragMode = DragMoveClip;
+
                 emit clipSelected(clip.id());
             }
             update();
@@ -293,27 +322,154 @@ void TimelineCanvas::mousePressEvent(QMouseEvent *event)
     // Click on empty space - deselect
     m_timeline->deselectAllClips();
     m_timeline->deselectAllCaptions();
+    m_dragMode = DragNone;
     update();
 }
 
 void TimelineCanvas::mouseMoveEvent(QMouseEvent *event)
 {
-    if (m_dragging && m_timeline) {
-        Clip *clip = m_timeline->clipById(m_dragClipId);
-        if (clip) {
-            int dx = MOUSE_X(event) - m_dragStart.x();
-            qint64 dt = static_cast<qint64>(dx / m_pixelsPerMs);
-            qint64 newStart = std::max(qint64(0), clip->startTime() + dt);
-            clip->setStartTime(newStart);
-            m_dragStart = MOUSE_POS(event);
-            update();
-        }
+    if (!m_timeline) return;
+
+    QPoint pos = MOUSE_POS(event);
+
+    if (m_dragMode == DragNone) {
+        updateCursorForPos(pos);
+        return;
     }
+
+    int dx = pos.x() - m_dragStart.x();
+    qint64 dt = static_cast<qint64>(dx / m_pixelsPerMs);
+
+    switch (m_dragMode) {
+    case DragMoveClip: {
+        Clip *clip = m_timeline->clipById(m_dragItemId);
+        if (clip) {
+            qint64 newStart = std::max(qint64(0), m_originalStart + dt);
+            clip->setStartTime(newStart);
+            int newTrack = trackAtY(pos.y());
+            if (newTrack >= 0 && newTrack < m_timeline->trackCount())
+                clip->setTrackIndex(newTrack);
+        }
+        break;
+    }
+    case DragMoveCaption: {
+        Caption *cap = m_timeline->captionById(m_dragItemId);
+        if (cap) {
+            qint64 newStart = std::max(qint64(0), m_originalStart + dt);
+            cap->setStartTime(newStart);
+            int newTrack = trackAtY(pos.y());
+            if (newTrack >= 0 && newTrack < m_timeline->trackCount())
+                cap->setTrackIndex(newTrack);
+        }
+        break;
+    }
+    case DragTrimLeftClip: {
+        Clip *clip = m_timeline->clipById(m_dragItemId);
+        if (clip) {
+            qint64 newStart = std::max(qint64(0), m_originalStart + dt);
+            qint64 endTime = m_originalStart + m_originalDuration;
+            if (newStart < endTime - 100) {
+                clip->setStartTime(newStart);
+                clip->setDuration(endTime - newStart);
+            }
+        }
+        break;
+    }
+    case DragTrimRightClip: {
+        Clip *clip = m_timeline->clipById(m_dragItemId);
+        if (clip) {
+            qint64 newDur = std::max(qint64(100), m_originalDuration + dt);
+            clip->setDuration(newDur);
+        }
+        break;
+    }
+    case DragTrimLeftCaption: {
+        Caption *cap = m_timeline->captionById(m_dragItemId);
+        if (cap) {
+            qint64 newStart = std::max(qint64(0), m_originalStart + dt);
+            qint64 endTime = m_originalStart + m_originalDuration;
+            if (newStart < endTime - 100) {
+                cap->setStartTime(newStart);
+                cap->setDuration(endTime - newStart);
+            }
+        }
+        break;
+    }
+    case DragTrimRightCaption: {
+        Caption *cap = m_timeline->captionById(m_dragItemId);
+        if (cap) {
+            qint64 newDur = std::max(qint64(100), m_originalDuration + dt);
+            cap->setDuration(newDur);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    update();
 }
 
 void TimelineCanvas::mouseReleaseEvent(QMouseEvent *)
 {
-    m_dragging = false;
+    m_dragMode = DragNone;
+    setCursor(Qt::ArrowCursor);
+    if (m_timeline)
+        emit m_timeline->durationChanged(m_timeline->duration());
+}
+
+void TimelineCanvas::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (!m_timeline) return;
+
+    QPoint pos = MOUSE_POS(event);
+    int trackIdx = trackAtY(pos.y());
+    qint64 time = static_cast<qint64>((pos.x() + m_scrollOffset) / m_pixelsPerMs);
+
+    // Double-click on empty area of a caption track adds a caption
+    if (trackIdx >= 0 && trackIdx < m_timeline->trackCount()) {
+        Track t = m_timeline->track(trackIdx);
+        if (t.type == Track::Caption) {
+            emit addCaptionAtTime(time, trackIdx);
+            return;
+        }
+    }
+}
+
+void TimelineCanvas::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls() || event->mimeData()->hasText())
+        event->acceptProposedAction();
+}
+
+void TimelineCanvas::dragMoveEvent(QDragMoveEvent *event)
+{
+    event->acceptProposedAction();
+}
+
+void TimelineCanvas::dropEvent(QDropEvent *event)
+{
+    if (!m_timeline) return;
+
+    QPoint pos = MOUSE_POS(event);
+    int trackIdx = trackAtY(pos.y());
+    qint64 time = static_cast<qint64>((pos.x() + m_scrollOffset) / m_pixelsPerMs);
+
+    if (trackIdx < 0) trackIdx = 0;
+    if (trackIdx >= m_timeline->trackCount()) trackIdx = 0;
+
+    if (event->mimeData()->hasUrls()) {
+        for (const auto &url : event->mimeData()->urls()) {
+            QString path = url.toLocalFile();
+            if (!path.isEmpty())
+                emit dropMediaFile(path, time, trackIdx);
+        }
+        event->acceptProposedAction();
+    } else if (event->mimeData()->hasText()) {
+        QString path = event->mimeData()->text();
+        if (QFileInfo::exists(path))
+            emit dropMediaFile(path, time, trackIdx);
+        event->acceptProposedAction();
+    }
 }
 
 QColor TimelineCanvas::clipColor(ClipType type, bool selected) const
@@ -350,6 +506,51 @@ QRect TimelineCanvas::captionRect(const Caption &cap) const
 int TimelineCanvas::trackY(int trackIndex) const
 {
     return trackIndex * m_trackHeight;
+}
+
+int TimelineCanvas::trackAtY(int y) const
+{
+    if (y < 0) return -1;
+    return y / m_trackHeight;
+}
+
+bool TimelineCanvas::isNearLeftEdge(const QRect &r, const QPoint &pos) const
+{
+    return pos.x() >= r.left() && pos.x() <= r.left() + 6;
+}
+
+bool TimelineCanvas::isNearRightEdge(const QRect &r, const QPoint &pos) const
+{
+    return pos.x() >= r.right() - 6 && pos.x() <= r.right();
+}
+
+void TimelineCanvas::updateCursorForPos(const QPoint &pos)
+{
+    if (!m_timeline) return;
+
+    for (const auto &cap : m_timeline->captions()) {
+        QRect r = captionRect(cap);
+        if (r.contains(pos)) {
+            if (isNearLeftEdge(r, pos) || isNearRightEdge(r, pos))
+                setCursor(Qt::SizeHorCursor);
+            else
+                setCursor(Qt::OpenHandCursor);
+            return;
+        }
+    }
+
+    for (const auto &clip : m_timeline->clips()) {
+        QRect r = clipRect(clip);
+        if (r.contains(pos)) {
+            if (isNearLeftEdge(r, pos) || isNearRightEdge(r, pos))
+                setCursor(Qt::SizeHorCursor);
+            else
+                setCursor(Qt::OpenHandCursor);
+            return;
+        }
+    }
+
+    setCursor(Qt::ArrowCursor);
 }
 
 // TimelinePanel
@@ -467,6 +668,9 @@ TimelinePanel::TimelinePanel(QWidget *parent)
 
     // Connections
     connect(m_addCaptionBtn, &QPushButton::clicked, this, &TimelinePanel::addCaptionRequested);
+    connect(m_splitBtn, &QPushButton::clicked, this, &TimelinePanel::splitRequested);
+    connect(m_deleteBtn, &QPushButton::clicked, this, &TimelinePanel::deleteRequested);
+    connect(m_addTrackBtn, &QPushButton::clicked, this, &TimelinePanel::addTrackRequested);
     connect(m_zoomInBtn, &QPushButton::clicked, this, &TimelinePanel::zoomIn);
     connect(m_zoomOutBtn, &QPushButton::clicked, this, &TimelinePanel::zoomOut);
     connect(m_ruler, &TimelineRuler::seekRequested, [this](qint64 time) {
@@ -474,6 +678,11 @@ TimelinePanel::TimelinePanel(QWidget *parent)
     });
     connect(m_canvas, &TimelineCanvas::clipSelected, this, &TimelinePanel::clipSelected);
     connect(m_canvas, &TimelineCanvas::captionSelected, this, &TimelinePanel::captionSelected);
+    connect(m_canvas, &TimelineCanvas::addCaptionAtTime, [this](qint64 time, int) {
+        if (m_timeline) m_timeline->setCurrentTime(time);
+        emit addCaptionRequested();
+    });
+    connect(m_canvas, &TimelineCanvas::dropMediaFile, this, &TimelinePanel::dropMediaFile);
 
     connect(m_scrollArea->horizontalScrollBar(), &QScrollBar::valueChanged,
             this, &TimelinePanel::onScroll);
@@ -494,6 +703,18 @@ void TimelinePanel::setTimeline(Timeline *timeline)
         connect(m_timeline, &Timeline::durationChanged, [this]() {
             int w = static_cast<int>(m_timeline->duration() * m_pixelsPerMs) + 200;
             m_canvas->setFixedWidth(w);
+        });
+
+        connect(m_timeline, &Timeline::trackAdded, [this]() {
+            updateHeaders();
+            int h = m_timeline->trackCount() * 40;
+            m_canvas->setFixedHeight(h);
+        });
+
+        connect(m_timeline, &Timeline::trackRemoved, [this]() {
+            updateHeaders();
+            int h = m_timeline->trackCount() * 40;
+            m_canvas->setFixedHeight(h);
         });
 
         connect(m_snapBtn, &QPushButton::toggled, [this](bool checked) {

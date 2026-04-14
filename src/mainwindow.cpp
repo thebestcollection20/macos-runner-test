@@ -4,6 +4,18 @@
 #include <QInputDialog>
 #include <QLabel>
 #include <QApplication>
+#include <QtGlobal>
+
+// Qt5/Qt6 addAction compatibility
+// Qt6 changed parameter order: addAction(text, shortcut, receiver, slot)
+// Qt5 uses:                     addAction(text, receiver, slot, shortcut)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#define MENU_ACTION(menu, text, receiver, slot, shortcut) \
+    (menu)->addAction((text), (shortcut), (receiver), (slot))
+#else
+#define MENU_ACTION(menu, text, receiver, slot, shortcut) \
+    (menu)->addAction((text), (receiver), (slot), (shortcut))
+#endif
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -47,31 +59,31 @@ void MainWindow::setupMenuBar()
 {
     // File menu
     auto *fileMenu = menuBar()->addMenu("&File");
-    fileMenu->addAction("&New Project", this, &MainWindow::newProject, QKeySequence::New);
-    fileMenu->addAction("&Open Project...", this, &MainWindow::openProject, QKeySequence::Open);
+    MENU_ACTION(fileMenu, "&New Project", this, &MainWindow::newProject, QKeySequence::New);
+    MENU_ACTION(fileMenu, "&Open Project...", this, &MainWindow::openProject, QKeySequence::Open);
     fileMenu->addSeparator();
-    fileMenu->addAction("&Save", this, &MainWindow::saveProject, QKeySequence::Save);
-    fileMenu->addAction("Save &As...", this, &MainWindow::saveProjectAs, QKeySequence("Ctrl+Shift+S"));
+    MENU_ACTION(fileMenu, "&Save", this, &MainWindow::saveProject, QKeySequence::Save);
+    MENU_ACTION(fileMenu, "Save &As...", this, &MainWindow::saveProjectAs, QKeySequence("Ctrl+Shift+S"));
     fileMenu->addSeparator();
-    fileMenu->addAction("Import &Media...", m_mediaBrowser, &MediaBrowser::importMedia, QKeySequence("Ctrl+I"));
+    MENU_ACTION(fileMenu, "Import &Media...", m_mediaBrowser, &MediaBrowser::importMedia, QKeySequence("Ctrl+I"));
     fileMenu->addSeparator();
-    fileMenu->addAction("&Export Project...", this, &MainWindow::exportProject, QKeySequence("Ctrl+E"));
-    fileMenu->addAction("Export &Captions...", this, &MainWindow::exportCaptions, QKeySequence("Ctrl+Shift+E"));
+    MENU_ACTION(fileMenu, "&Export Project...", this, &MainWindow::exportProject, QKeySequence("Ctrl+E"));
+    MENU_ACTION(fileMenu, "Export &Captions...", this, &MainWindow::exportCaptions, QKeySequence("Ctrl+Shift+E"));
     fileMenu->addSeparator();
-    fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence::Quit);
+    MENU_ACTION(fileMenu, "E&xit", this, &QWidget::close, QKeySequence::Quit);
 
     // Edit menu
     auto *editMenu = menuBar()->addMenu("&Edit");
-    editMenu->addAction("&Undo", this, &MainWindow::undo, QKeySequence::Undo);
-    editMenu->addAction("&Redo", this, &MainWindow::redo, QKeySequence::Redo);
+    MENU_ACTION(editMenu, "&Undo", this, &MainWindow::undo, QKeySequence::Undo);
+    MENU_ACTION(editMenu, "&Redo", this, &MainWindow::redo, QKeySequence::Redo);
     editMenu->addSeparator();
-    editMenu->addAction("&Delete", this, &MainWindow::deleteSelected, QKeySequence::Delete);
-    editMenu->addAction("Select &All", this, &MainWindow::selectAll, QKeySequence::SelectAll);
+    MENU_ACTION(editMenu, "&Delete", this, &MainWindow::deleteSelected, QKeySequence::Delete);
+    MENU_ACTION(editMenu, "Select &All", this, &MainWindow::selectAll, QKeySequence::SelectAll);
 
     // Caption menu
     auto *captionMenu = menuBar()->addMenu("&Caption");
-    captionMenu->addAction("&Add Caption", this, &MainWindow::addCaption, QKeySequence("Ctrl+T"));
-    captionMenu->addAction("&Duplicate Caption", this, &MainWindow::duplicateCaption, QKeySequence("Ctrl+D"));
+    MENU_ACTION(captionMenu, "&Add Caption", this, &MainWindow::addCaption, QKeySequence("Ctrl+T"));
+    MENU_ACTION(captionMenu, "&Duplicate Caption", this, &MainWindow::duplicateCaption, QKeySequence("Ctrl+D"));
     captionMenu->addSeparator();
     captionMenu->addAction("Apply &Brand Kit", this, &MainWindow::onApplyBrandToCaption);
 
@@ -79,16 +91,16 @@ void MainWindow::setupMenuBar()
     auto *viewMenu = menuBar()->addMenu("&View");
     viewMenu->addAction("&Reset Layout", this, &MainWindow::resetLayout);
     viewMenu->addSeparator();
-    viewMenu->addAction("Zoom &In", m_timelinePanel, &TimelinePanel::zoomIn, QKeySequence("Ctrl+="));
-    viewMenu->addAction("Zoom &Out", m_timelinePanel, &TimelinePanel::zoomOut, QKeySequence("Ctrl+-"));
-    viewMenu->addAction("&Fit to Window", m_timelinePanel, &TimelinePanel::fitToWindow, QKeySequence("Ctrl+0"));
+    MENU_ACTION(viewMenu, "Zoom &In", m_timelinePanel, &TimelinePanel::zoomIn, QKeySequence("Ctrl+="));
+    MENU_ACTION(viewMenu, "Zoom &Out", m_timelinePanel, &TimelinePanel::zoomOut, QKeySequence("Ctrl+-"));
+    MENU_ACTION(viewMenu, "&Fit to Window", m_timelinePanel, &TimelinePanel::fitToWindow, QKeySequence("Ctrl+0"));
 
     // Playback menu
     auto *playbackMenu = menuBar()->addMenu("&Playback");
-    playbackMenu->addAction("&Play/Pause", m_previewPanel, &PreviewPanel::togglePlay, QKeySequence("Space"));
-    playbackMenu->addAction("&Stop", m_previewPanel, &PreviewPanel::stop, QKeySequence("Escape"));
-    playbackMenu->addAction("Step &Forward", m_previewPanel, &PreviewPanel::stepForward, QKeySequence("Right"));
-    playbackMenu->addAction("Step &Backward", m_previewPanel, &PreviewPanel::stepBackward, QKeySequence("Left"));
+    MENU_ACTION(playbackMenu, "&Play/Pause", m_previewPanel, &PreviewPanel::togglePlay, QKeySequence("Space"));
+    MENU_ACTION(playbackMenu, "&Stop", m_previewPanel, &PreviewPanel::stop, QKeySequence("Escape"));
+    MENU_ACTION(playbackMenu, "Step &Forward", m_previewPanel, &PreviewPanel::stepForward, QKeySequence("Right"));
+    MENU_ACTION(playbackMenu, "Step &Backward", m_previewPanel, &PreviewPanel::stepBackward, QKeySequence("Left"));
 
     // Help menu
     auto *helpMenu = menuBar()->addMenu("&Help");

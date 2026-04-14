@@ -3,6 +3,15 @@
 #include <QTextStream>
 #include <QFileInfo>
 #include <QDir>
+#include <QtGlobal>
+
+// Qt5/Qt6 text stream compatibility
+// In Qt6, QTextStream always uses UTF-8 and setCodec() was removed.
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+#define SET_UTF8_CODEC(stream) (stream).setCodec("UTF-8")
+#else
+#define SET_UTF8_CODEC(stream) /* Qt6 defaults to UTF-8 */
+#endif
 
 Exporter::Exporter(QObject *parent)
     : QObject(parent)
@@ -80,7 +89,7 @@ void Exporter::exportSRT(const QString &path)
     }
 
     QTextStream out(&file);
-    out.setCodec("UTF-8");
+    SET_UTF8_CODEC(out);
 
     auto captions = m_project->timeline()->captions();
     std::sort(captions.begin(), captions.end(),
@@ -111,7 +120,7 @@ void Exporter::exportVTT(const QString &path)
     }
 
     QTextStream out(&file);
-    out.setCodec("UTF-8");
+    SET_UTF8_CODEC(out);
     out << "WEBVTT\n\n";
 
     auto captions = m_project->timeline()->captions();
@@ -144,7 +153,7 @@ void Exporter::exportASS(const QString &path)
     }
 
     QTextStream out(&file);
-    out.setCodec("UTF-8");
+    SET_UTF8_CODEC(out);
 
     // ASS header
     out << "[Script Info]\n";

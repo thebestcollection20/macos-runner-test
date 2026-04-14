@@ -684,6 +684,11 @@ TimelinePanel::TimelinePanel(QWidget *parent)
     });
     connect(m_canvas, &TimelineCanvas::dropMediaFile, this, &TimelinePanel::dropMediaFile);
 
+    // Snap button: connect once in constructor, lambda reads m_timeline at invocation time
+    connect(m_snapBtn, &QPushButton::toggled, [this](bool checked) {
+        if (m_timeline) m_timeline->setSnapEnabled(checked);
+    });
+
     connect(m_scrollArea->horizontalScrollBar(), &QScrollBar::valueChanged,
             this, &TimelinePanel::onScroll);
 }
@@ -717,9 +722,6 @@ void TimelinePanel::setTimeline(Timeline *timeline)
             m_canvas->setFixedHeight(h);
         });
 
-        connect(m_snapBtn, &QPushButton::toggled, [this](bool checked) {
-            m_timeline->setSnapEnabled(checked);
-        });
     }
 }
 

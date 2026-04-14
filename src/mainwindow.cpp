@@ -292,6 +292,10 @@ void MainWindow::newProject()
     m_captionEditor->clearCaption();
     m_inspectorPanel->clearClip();
     m_selectedCaption = nullptr;
+    // Re-establish timeline -> preview sync for new project
+    connect(m_project->timeline(), &Timeline::timeChanged, [this](qint64) {
+        m_previewPanel->update();
+    });
     updateTitle();
     statusBar()->showMessage("New project created", 3000);
 }
@@ -318,6 +322,10 @@ void MainWindow::openProject()
     m_captionEditor->clearCaption();
     m_inspectorPanel->clearClip();
     m_selectedCaption = nullptr;
+    // Re-establish timeline -> preview sync for opened project
+    connect(m_project->timeline(), &Timeline::timeChanged, [this](qint64) {
+        m_previewPanel->update();
+    });
     updateTitle();
     statusBar()->showMessage("Project opened: " + path, 3000);
 }

@@ -7,14 +7,16 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt5 REQUIRED COMPONENTS
-    Core
-    Gui
-    Widgets
-    Multimedia
-    MultimediaWidgets
-    Svg
-)
+# Try Qt6 first, fall back to Qt5
+find_package(Qt6 QUIET COMPONENTS Core Gui Widgets Multimedia MultimediaWidgets Svg)
+if(Qt6_FOUND)
+    set(QT_VERSION_MAJOR 6)
+    message(STATUS "Using Qt6")
+else()
+    find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets Multimedia MultimediaWidgets Svg)
+    set(QT_VERSION_MAJOR 5)
+    message(STATUS "Using Qt5")
+endif()
 
 set(CORE_SOURCES
     src/core/project.h
@@ -75,12 +77,12 @@ target_include_directories(CaptionStudio PRIVATE
 )
 
 target_link_libraries(CaptionStudio PRIVATE
-    Qt5::Core
-    Qt5::Gui
-    Qt5::Widgets
-    Qt5::Multimedia
-    Qt5::MultimediaWidgets
-    Qt5::Svg
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+    Qt${QT_VERSION_MAJOR}::Svg
 )
 
 install(TARGETS CaptionStudio RUNTIME DESTINATION bin)

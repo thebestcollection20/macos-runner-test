@@ -1,6 +1,16 @@
 #include "timelinepanel.h"
 #include "theme.h"
 #include <QScrollBar>
+#include <QtGlobal>
+
+// Qt5/Qt6 mouse event compatibility
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#define MOUSE_POS(event) (event)->position().toPoint()
+#define MOUSE_X(event)   static_cast<int>((event)->position().x())
+#else
+#define MOUSE_POS(event) (event)->pos()
+#define MOUSE_X(event)   (event)->x()
+#endif
 
 // TimelineRuler
 TimelineRuler::TimelineRuler(QWidget *parent)
@@ -80,7 +90,7 @@ void TimelineRuler::paintEvent(QPaintEvent *)
 
 void TimelineRuler::mousePressEvent(QMouseEvent *event)
 {
-    qint64 time = static_cast<qint64>((event->x() + m_scrollOffset) / m_pixelsPerMs);
+    qint64 time = static_cast<qint64>((MOUSE_X(event) + m_scrollOffset) / m_pixelsPerMs);
     emit seekRequested(time);
 }
 
@@ -244,7 +254,7 @@ void TimelineCanvas::mousePressEvent(QMouseEvent *event)
     if (!m_timeline)
         return;
 
-    QPoint pos = event->pos();
+    QPoint pos = MOUSE_POS(event);
 
     // Check captions first
     for (auto &cap : m_timeline->captions()) {
@@ -291,11 +301,11 @@ void TimelineCanvas::mouseMoveEvent(QMouseEvent *event)
     if (m_dragging && m_timeline) {
         Clip *clip = m_timeline->clipById(m_dragClipId);
         if (clip) {
-            int dx = event->x() - m_dragStart.x();
+            int dx = MOUSE_X(event) - m_dragStart.x();
             qint64 dt = static_cast<qint64>(dx / m_pixelsPerMs);
             qint64 newStart = std::max(qint64(0), clip->startTime() + dt);
             clip->setStartTime(newStart);
-            m_dragStart = event->pos();
+            m_dragStart = MOUSE_POS(event);
             update();
         }
     }

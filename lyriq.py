@@ -71,6 +71,12 @@ COLORS = {
 
 C = COLORS  # shorthand
 
+
+def hex_alpha(hex_color, alpha_hex):
+    """Convert #RRGGBB + alpha hex to Qt's #AARRGGBB format."""
+    return f"#{alpha_hex}{hex_color[1:]}"
+
+
 # ---------------------------------------------------------------------------
 # Shared stylesheet helpers
 # ---------------------------------------------------------------------------
@@ -343,7 +349,7 @@ class ColorSwatch(QPushButton):
         if self._selected:
             p.setPen(QPen(QColor("white"), 2))
         else:
-            p.setPen(QPen(QColor("rgba(255,255,255,0.2)"), 1))
+            p.setPen(QPen(QColor(255, 255, 255, 51), 1))
         p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
         p.end()
 
@@ -365,7 +371,7 @@ class ProgressBarCustom(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
         # track
-        p.setBrush(QColor("rgba(255,255,255,0.05)"))
+        p.setBrush(QColor(255, 255, 255, 13))
         p.setPen(Qt.NoPen)
         p.drawRoundedRect(0, 0, w, h, h / 2, h / 2)
         # fill
@@ -584,7 +590,7 @@ class ProjectCard(GlassPanel):
         status_color = status_color or C['primary']
         badge = QLabel(status.upper())
         badge.setStyleSheet(
-            f"background: {status_color}20; color: {status_color}; "
+            f"background: {hex_alpha(status_color, '20')}; color: {status_color}; "
             f"font-size: 9px; font-weight: 700; letter-spacing: 1.5px; "
             f"padding: 3px 8px; border-radius: 4px;"
         )
@@ -876,7 +882,7 @@ class AudioImportPage(QWidget):
             icon_w = QWidget()
             icon_w.setFixedSize(40, 40)
             icon_w.setStyleSheet(
-                f"background: {scolor}20; border-radius: 10px;"
+                f"background: {hex_alpha(scolor, '20')}; border-radius: 10px;"
             )
             iw_l = QVBoxLayout(icon_w)
             iw_l.setContentsMargins(0, 0, 0, 0)
@@ -896,7 +902,7 @@ class AudioImportPage(QWidget):
 
             badge = QLabel(status)
             badge.setStyleSheet(
-                f"background: {scolor}30; color: {scolor}; font-size: 9px; "
+                f"background: {hex_alpha(scolor, '30')}; color: {scolor}; font-size: 9px; "
                 f"font-weight: 700; padding: 3px 8px; border-radius: 4px;"
             )
             cl.addWidget(badge)
@@ -982,7 +988,7 @@ class LyricCard(GlassPanel):
 
         for i, line in enumerate(lines):
             row = QHBoxLayout()
-            num = make_label(f"{i + 1:02d}", 11, C['slate600'] if not active else f"{C['primary']}90",
+            num = make_label(f"{i + 1:02d}", 11, C['slate600'] if not active else hex_alpha(C['primary'], '90'),
                              bold=True, caps=True)
             num.setFixedWidth(28)
             row.addWidget(num)
@@ -1079,8 +1085,8 @@ class LyricsEditorPage(QWidget):
         ]
         for icon, cat, color, desc in issues:
             issue_panel = GlassPanel(radius=10,
-                                     border_color=f"{color}30",
-                                     bg=f"{color}15")
+                                     border_color=hex_alpha(color, '30'),
+                                     bg=hex_alpha(color, '15'))
             il = QVBoxLayout(issue_panel)
             il.setContentsMargins(12, 10, 12, 10)
             il.setSpacing(4)
@@ -1242,7 +1248,7 @@ class FineTuningSyncPage(QWidget):
         grid.addWidget(prev_card, 0, 0, 1, 8)
 
         # current phrase (focused)
-        current_card = GlassPanel(radius=12, border_color=f"{C['primary']}60",
+        current_card = GlassPanel(radius=12, border_color=hex_alpha(C['primary'], '60'),
                                   bg=f"rgba(121,217,169,0.05)")
         current_card.add_glow(QColor(121, 217, 169, 40), 25)
         ccl = QVBoxLayout(current_card)
@@ -1301,7 +1307,7 @@ class FineTuningSyncPage(QWidget):
         actions_grid = QGridLayout()
         actions_grid.setSpacing(10)
         for i, (icon, label) in enumerate([("\u2728", "AI ALIGN"), ("\u23F0", "RESTORE")]):
-            tile = GlassPanel(radius=12, border_color=f"{C['outline']}50")
+            tile = GlassPanel(radius=12, border_color=hex_alpha(C['outline'], '50'))
             tile.setStyleSheet(tile.styleSheet().replace(
                 "border: 1px solid", "border: 1px dashed"
             ))
@@ -1622,7 +1628,7 @@ class StylingPreviewPage(QWidget):
         ll.setAlignment(Qt.AlignCenter)
         ll.setSpacing(16)
 
-        prev_line = make_label("Lost in the frequencies of the night", 18, f"{C['on_surface']}60")
+        prev_line = make_label("Lost in the frequencies of the night", 18, hex_alpha(C['on_surface'], '60'))
         prev_line.setAlignment(Qt.AlignCenter)
         ll.addWidget(prev_line)
 
@@ -1635,7 +1641,7 @@ class StylingPreviewPage(QWidget):
         current_line.setWordWrap(True)
         ll.addWidget(current_line)
 
-        next_line = make_label("Where silence meets the blinding white", 18, f"{C['on_surface']}60")
+        next_line = make_label("Where silence meets the blinding white", 18, hex_alpha(C['on_surface'], '60'))
         next_line.setAlignment(Qt.AlignCenter)
         ll.addWidget(next_line)
 
@@ -1703,7 +1709,7 @@ class StylingPreviewPage(QWidget):
 class ExportFormatCard(GlassPanel):
     """Export format selection card."""
     def __init__(self, title, description, badge_text, selected=False, parent=None):
-        border = f"{C['indigo500']}60" if selected else "rgba(255,255,255,0.1)"
+        border = hex_alpha(C['indigo500'], '60') if selected else "rgba(255,255,255,0.1)"
         bg = "rgba(23,31,51,0.6)"
         super().__init__(parent, radius=12, border_color=border, bg=bg)
         if selected:
@@ -1717,7 +1723,7 @@ class ExportFormatCard(GlassPanel):
         top_row = QHBoxLayout()
         icon_w = QWidget()
         icon_w.setFixedSize(40, 40)
-        icon_bg = C['indigo500'] if selected else f"{C['indigo500']}30"
+        icon_bg = C['indigo500'] if selected else hex_alpha(C['indigo500'], '30')
         icon_color = C['on_primary'] if selected else C['indigo400']
         icon_w.setStyleSheet(f"background: {icon_bg}; border-radius: 8px;")
         iw_l = QVBoxLayout(icon_w)
@@ -1729,7 +1735,7 @@ class ExportFormatCard(GlassPanel):
         badge = QLabel(badge_text.upper())
         badge_color = C['primary'] if selected else C['indigo400']
         badge.setStyleSheet(
-            f"background: {badge_color}30; color: {badge_color}; "
+            f"background: {hex_alpha(badge_color, '30')}; color: {badge_color}; "
             f"font-size: 9px; font-weight: 700; letter-spacing: 1.5px; "
             f"padding: 4px 10px; border-radius: 10px;"
         )

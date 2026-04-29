@@ -224,7 +224,10 @@ class GradientLabel(QLabel):
         pen = QPen(QBrush(grad), 1)
         p.setPen(pen)
         p.setFont(self.font())
-        p.drawText(self.rect(), Qt.AlignLeft | Qt.AlignVCenter, self._text)
+        flags = int(self.alignment()) | Qt.AlignVCenter
+        if self.wordWrap():
+            flags |= Qt.TextWordWrap
+        p.drawText(self.rect(), flags, self._text)
         p.end()
 
 
@@ -247,8 +250,8 @@ class WaveformWidget(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         w = self.width()
         h = self.height()
-        bar_w = max(2, (w - self.bar_count) / self.bar_count)
         gap = 2
+        bar_w = max(2, (w - (self.bar_count - 1) * gap) / self.bar_count)
         played_x = w * self.played_ratio
 
         for i, bh in enumerate(self.heights):
@@ -687,14 +690,15 @@ class LyricsLibraryPage(QWidget):
         card0.setMinimumHeight(220)
         grid.addWidget(card0, 0, 0, 1, 2)
 
-        for i, proj in enumerate(projects[1:], 1):
+        for i, proj in enumerate(projects[1:]):
             card = ProjectCard(*proj)
             card.setMinimumHeight(200)
-            row = (i - 1) // 3 + 1 if i > 0 else 0
-            col = (i - 1) % 3
+            row = i // 3 + 1
+            col = i % 3
             grid.addWidget(card, row, col)
 
-        # new project slot
+        # new project slot (after last project card)
+        slot_idx = len(projects) - 1
         new_slot = QFrame()
         new_slot.setStyleSheet(
             f"border: 2px dashed rgba(255,255,255,0.1); border-radius: 20px; "
@@ -707,7 +711,7 @@ class LyricsLibraryPage(QWidget):
         ns_layout.addWidget(make_label("Start New Lyrics", 18, C['on_surface_variant'], bold=True))
         ns_layout.addWidget(make_label("Import beat or sync AI", 12, C['outline']))
         new_slot.setMinimumHeight(200)
-        grid.addWidget(new_slot, 1, 2)
+        grid.addWidget(new_slot, slot_idx // 3 + 1, slot_idx % 3)
 
         layout.addLayout(grid)
         layout.addStretch()
@@ -1622,15 +1626,13 @@ class StylingPreviewPage(QWidget):
         prev_line.setAlignment(Qt.AlignCenter)
         ll.addWidget(prev_line)
 
-        current_line = QLabel("Chasing the echoes until the light")
+        current_line = GradientLabel("Chasing the echoes until the light")
         current_line.setAlignment(Qt.AlignCenter)
+        font = QFont("Segoe UI", 22, QFont.Bold)
+        font.setItalic(True)
+        current_line.setFont(font)
+        current_line.setMinimumHeight(60)
         current_line.setWordWrap(True)
-        current_line.setStyleSheet(
-            f"font-size: 28px; font-weight: bold; background: transparent; "
-            f"color: qlineargradient(x1:0,y1:0,x2:1,y2:0, "
-            f"stop:0 {C['indigo400']}, stop:1 {C['purple400']});"
-        )
-        # Qt doesn't support gradient text via CSS, so use a custom paint
         ll.addWidget(current_line)
 
         next_line = make_label("Where silence meets the blinding white", 18, f"{C['on_surface']}60")
